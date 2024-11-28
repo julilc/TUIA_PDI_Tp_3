@@ -68,7 +68,6 @@ def find_and_draw_circles(thresh_image, dp_ = 1.2, minD = 30, p1 = 50, p2 = 100,
         # Dibujar los círculos encontrados
         for (x, y, r) in circles:
             area = np.pi * r **2
-            print(area)
             # Dibujar el círculo exterior
             cv2.circle(result_image, (x, y), r, (0, 255, 0), 1)
             # Dibujar el centro del círculo
@@ -85,3 +84,61 @@ def find_and_draw_circles(thresh_image, dp_ = 1.2, minD = 30, p1 = 50, p2 = 100,
     else:
         return ("No se encontraron círculos en la imagen.")
     
+def contar_dados(dados, thr_img) -> tuple[dict, int]:
+    '''
+    Esta función devuelve para cada dado su puntaje y
+    el puntaje total obtenido por todos los dados.
+    -------------------------------------------------------
+
+    #### Parámetros:
+        - dados: lista de dados, cada uno representado como un contorno.
+
+    -------------------------------------------------------
+
+    #### Retorna:
+        -dict_dados: diccionrio {dado: puntaje}
+        -puntaje: total de puntos obtenidos entre todos los dados.        
+    
+    -------------------------------------------------------
+
+    #### Procedimiento:
+        1. Para cada dado se busca sus círculos (es decir sus puntos)
+            utilizando HoughCircles.
+        2. Se cuenta la cantidad de puntos y se los suma en el diccionario al dado i.
+        3. Se suma al total de puntos cada punto detectado en dicho dado.
+    '''
+
+    dict_dados = {}
+    puntaje = 0
+    i = 1
+    for dado in dados:
+        x, y, w, h = cv2.boundingRect(dado)
+        area = cv2.contourArea(dado)
+        # if area < 500:
+        #     continue
+        d = thr_img[y:y+h, x:x+w]
+        #imshow(d)
+
+        circles = cv2.HoughCircles(d, 
+                               cv2.HOUGH_GRADIENT, dp_ = 1.2, minD = 7, p1 = 1, p2 = 2, minR = 2, maxR = 8)
+    
+        punto_dado = 0
+        img_draw = cv2.cvtColor(d.copy(), cv2.COLOR_GRAY2BGR)
+
+        # Asegurarse de que se encontraron círculos
+        if circles is not None:
+            circles = np.round(circles[0, :]).astype("int")  # Redondear y convertir a enteros
+            # Dibujar los círculos encontrados
+            for (x, y, r) in circles:
+                area = np.pi * r ** 2
+                # Dibujar el círculo exterior
+                # cv2.circle(img_draw, (x, y), r, (0, 255, 0), 1)
+                # # Dibujar el centro del círculo
+                # cv2.circle(img_draw, (x, y), 2, (0, 0, 255), 1)
+        
+                punto_dado += 1
+        #imshow(img_draw)
+        dict_dados[f"dado {i}"] = punto_dado
+        puntaje += punto_dado
+        i += 1
+    return dict_dados, puntaje
