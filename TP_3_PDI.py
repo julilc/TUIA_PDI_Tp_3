@@ -74,8 +74,7 @@ def area_of_interest(frame_bg: np.array, stop: bool = False)->np.array:
         #imshow(mask_blur_binary)
 
 
-        #finalmente se pueden detectar los cuadrados:
-        cuadrados = []
+        
         num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask_blur_binary, connectivity=4)
         img_draw = area_interes.copy()
         #Obtenemos las componentes conectadas y aplicamos filtro por área
@@ -103,7 +102,7 @@ def area_of_interest(frame_bg: np.array, stop: bool = False)->np.array:
                 
         
         imshow(img_draw, title= '4. Imagen Filtrada', blocking= True)
-        return img_draw
+        return img_draw, (x_area_interes, y_area_interes, w_area_interes, h_area_interes)
     
     
     return area_interes, (x_area_interes, y_area_interes, w_area_interes, h_area_interes)
@@ -161,12 +160,20 @@ def detectar_movimiento(video_path, umbral_movimiento=5000, escala=0.5):
 
         # Vemos cuantos pixeles se mueven para retener los que son 0
         num_pixeles_movimiento = np.sum(diferencia_bin > 0)
+        paro = False
         
         if num_pixeles_movimiento == 0 and frame_number > 50:
+            paro = True
             #imshow(frame_actual, blocking=True)
             area_of_interest(frame_actual, stop = True)
-            return frame_actual, frame_number
+        
+        
+        if num_pixeles_movimiento != 0 and paro:
+            return
+            
         frame_number+=1
+        
+        
         
         frame_actual = frame_siguiente
         
@@ -176,7 +183,7 @@ def detectar_movimiento(video_path, umbral_movimiento=5000, escala=0.5):
     cap.release()
     cv2.destroyAllWindows()
 
-for i in range(1,5):
+for i in range(1,2):
     video_path = f"data/tirada_{i}.mp4"
 
     frame, numero_frame = detectar_movimiento(video_path, umbral_movimiento=0, escala=0.5)
