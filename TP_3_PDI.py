@@ -202,8 +202,8 @@ def geberala(combinaciones=list[int])-> tuple[int,str]:
             text_combinacion = "Escalera mayor: 25 puntos"
         # Suma de números específicos
         else:
-            puntuacion_generala = puntuacion_generala  # Sumar los valores de los dados
-            text_combinacion = f"Suma: {puntuacion_generala} puntos"
+            puntuacion_generala = sum(combinaciones)  # Sumar los valores de los dados
+            text_combinacion = f"puntaje: {puntuacion_generala} puntos. No forma juego"
     return puntuacion_generala, text_combinacion
             
 
@@ -226,11 +226,10 @@ def dibujar_dados(frame: np.array, lista_dados: list = None, dic_d: dict = None,
                 i += 1
         
         puntuacion_generala, text_combinacion = geberala(combinaciones)
-        cv2.putText(frame_draw, text_combinacion, (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.8, (0, 255, 0), thickness=2)
 
         if label:
-            text_puntaje = f'Puntaje total: {puntaje_jugada + puntuacion_generala}'
-            cv2.putText(frame_draw, text_puntaje, (20, 120), cv2.FONT_HERSHEY_DUPLEX, 1.8, (255, 0, 0), thickness=2)
+            text_puntaje = f'Puntaje total: {puntuacion_generala}'
+            cv2.putText(frame_draw, text_combinacion, (20, 60), cv2.FONT_HERSHEY_DUPLEX, 1.8, (0, 255, 0), thickness=2)
 
     else:
         for i in range(len(lista_dados)):
@@ -238,8 +237,7 @@ def dibujar_dados(frame: np.array, lista_dados: list = None, dic_d: dict = None,
             cv2.rectangle(frame_draw, (x, y), (x + w, y + h), (255, 0, 0), 2)
         if puntaje_jugada != 0:
             text_puntaje = f'Puntaje total: {puntaje_jugada}'
-            cv2.putText(frame_draw, texto, (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.8, (0, 255, 0), thickness=2)
-            cv2.putText(frame_draw, text_puntaje, (20, 120), cv2.FONT_HERSHEY_DUPLEX, 1.8, (255, 0, 0), thickness=2)
+            cv2.putText(frame_draw, texto, (20, 60), cv2.FONT_HERSHEY_DUPLEX, 1.8, (0, 255, 0), thickness=2)
 
     return frame_draw
 
@@ -256,9 +254,7 @@ def modificar_frames(video_path, frame_stop, low_limit, up_limit, coords, new_w 
     ret, frame_ant = cap.read()
     num_frame = 0
     frames_mod = []
-    puntaje_acumulado=0
     total_puntos=0
-    texto = "Suma: 0 puntos"
 
     if output_video_path != None:
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -292,7 +288,6 @@ def modificar_frames(video_path, frame_stop, low_limit, up_limit, coords, new_w 
             combinaciones = [punto for _, punto in dic_dados.items()]
             puntaje_generala, texto_ = geberala(combinaciones)
             texto = texto_
-            puntaje_acumulado += puntaje + puntaje_generala
             total_puntos+=puntaje
 
             area_interest_frame_stop = cv2.cvtColor(area_interest_frame_stop, cv2.COLOR_BGR2RGB)
@@ -314,7 +309,7 @@ def modificar_frames(video_path, frame_stop, low_limit, up_limit, coords, new_w 
             )
             lista_dados = find_dados(area_interes_f_n, mask_not_bk_f_n)
             area_interes_f_n = cv2.cvtColor(area_interes_f_n, cv2.COLOR_BGR2RGB)
-            area_dib = dibujar_dados(area_interes_f_n, lista_dados= lista_dados, puntaje_jugada= puntaje_acumulado, texto = texto)
+            area_dib = dibujar_dados(area_interes_f_n, lista_dados= lista_dados, puntaje_jugada= puntaje_generala, texto = texto)
             frame_dib = unir_frames(frame_sig, area_dib, coords=coords)
 
         num_frame+=1
@@ -335,18 +330,18 @@ def modificar_frames(video_path, frame_stop, low_limit, up_limit, coords, new_w 
     if output_video_path != None:
         out.release()
     cv2.destroyAllWindows()
-    return frames_mod, dic_dados, puntaje_acumulado, total_puntos
+    return frames_mod, dic_dados, puntaje_generala, total_puntos
+cap = cv2.VideoCapture("data/tirada_4.mp4")
+ret, frame_test = cap.read()
+
+cap.release()
+cv2.destroyAllWindows()
+
+low_li, up_li = green_sample(frame_test)
+area_interest_f, mask_not_bk_f, mask_bk_f, coords_f = area_of_interest(frame_test, lower_limit= low_li, upper_limit= up_li)
     
 def user(path="data/tirada_4.mp4", output_video_path =None):
-    cap = cv2.VideoCapture(path)
-    ret, frame_test = cap.read()
-
-    cap.release()
-    cv2.destroyAllWindows()
-
-    low_li, up_li = green_sample(frame_test)
-    area_interest_f, mask_not_bk_f, mask_bk_f, coords_f = area_of_interest(frame_test, lower_limit= low_li, upper_limit= up_li)
-    #imshow(mask_not_bk_f, blocking= True)
+        #imshow(mask_not_bk_f, blocking= True)
     frame_stop = find_frame_stop()
 
     new_width = int(area_interest_f.shape[1] * 0.4)
@@ -358,16 +353,16 @@ def user(path="data/tirada_4.mp4", output_video_path =None):
         frames_modificados, dic_dados, puntaje, total_puntos = modificar_frames(video_path, frame_stop= frame_stop, low_limit= low_li, up_limit = up_li,coords= coords_f, new_w = new_width, new_h = new_height)
 
 
-    print(f'Esta tirada tuvo los siguientes puntos:')
+    print(f"Esta tirada tuvo los siguientes puntos:")
     s = 1
     for dado, punto in dic_dados.items():
-        print(f'El dado {s}: {punto}')
+        print(f"El dado {s}: {punto}")
         s+=1
-    print(f'El total de puntos es: {total_puntos}')
-    print(f'El puntaje total fue: {puntaje}')
+    print(f"El total de puntos es: {total_puntos}")
+    print(f"El puntaje total fue: {puntaje}")
 
 for i in range(1,5):
-    user(f'data/tirada_{i}.mp4', f'Video_{i}.mp4')
+    user(f"data/tirada_{i}.mp4")#,f"Video_{i}.mp4")
 
 
 # plt.figure()
