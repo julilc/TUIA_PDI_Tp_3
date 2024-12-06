@@ -62,16 +62,12 @@ def stop(frame_ant:np.array, frame_sig: np.array, threshold: int = 0)-> bool:
     # Calcular la diferencia absoluta entre los dos frames
     diff = cv2.absdiff(frame_ant_gray, frame_sig_gray)
     
-    # Aplicar un umbral para resaltar las diferencias significativas
+    # Aplicamos elumbral
     _, diff_thresh = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
     
-    # Contar los píxeles diferentes
     num_diff_pixels = cv2.countNonZero(diff_thresh)
 
-    
-    # Si la diferencia de píxeles es menor que el umbral, no hubo movimiento
     return num_diff_pixels < threshold
-
 
 
 def find_frame_stop(video_path: str = "data/tirada_4.mp4")-> int:
@@ -84,33 +80,25 @@ def find_frame_stop(video_path: str = "data/tirada_4.mp4")-> int:
     frame_stop = 0
     # Leer el primer frame
     ret, frame_ant = cap.read()
-    if not ret:
-        print("Error al leer el video.")
-        cap.release()
-        exit()
+    # if not ret:
+    #     print("Error al leer el video.")
+    #     cap.release()
+    #     exit()
 
-    
-    # Procesar el video frame a frame
     while True:
-        # Obtener la región de interés del primer frame
+        # Región de interés del primer frame
         frame_ant_interest, mask_bk_frame_ant, mask_not_bk_frame_ant = area_of_interest(frame_ant, low_li, up_li, coords=coords_f)
     
-        # Leer el siguiente frame
         ret, frame_sig = cap.read()
-        if not ret:  # Salir si no hay más frames
+        if not ret:
             break
 
-        # Obtener la región de interés del siguiente frame
+        # Región de interés del siguiente frame
         frame_sig_interest, mask_bk_frame_sig, mask_not_bk_frame_sig = area_of_interest(frame_sig, low_li, up_li, coords=coords_f)
 
-        
-        
-        # Saltar los primeros frames
         if num_frame > frames_skip:
-            # Llamar a la función `stop` para detectar si no hubo movimiento
             movement = stop(frame_ant_interest, frame_sig_interest, threshold=6)
             
-            # Mostrar el resultado
             if movement:
                 #print(f"No hay movimiento detectado en el frame: {num_frame}")
                 if consec_not_mov == 0:
@@ -120,11 +108,10 @@ def find_frame_stop(video_path: str = "data/tirada_4.mp4")-> int:
                 consec_not_mov = 0
                 #print(f"Movimiento detectado en el frame: {num_frame}")
             
-            # Si han pasado 4 frames consecutivos sin movimiento, considerar que los dados se han detenido
+            # Si pasan 4 frames consecutivos sin movimiento, considerar que los dados se han detenido
             if consec_not_mov >= 4:
                 #print(f'Los dados se detuvieron en el frame: {frame_stop}')
-                break  # Salir del loop si los dados se detuvieron
-        # Actualizar frame anterior
+                break 
         frame_ant = frame_sig
         
         num_frame += 1
@@ -142,7 +129,7 @@ def find_dados(frame_C,mask_not_bk: np.array)-> list:
     mask_open = cv2.morphologyEx(mask_not_bk, cv2.MORPH_OPEN, k, iterations= 2)
     mask_blur = cv2.GaussianBlur(mask_open, (5, 5), 0)
     _, mask_blur_binary = cv2.threshold(mask_blur, 170, 255, cv2.THRESH_BINARY)
-    imshow(mask_blur_binary)
+    # imshow(mask_blur_binary)
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask_blur_binary, connectivity=4)
     for i in range(1, num_labels):
         x, y, w, h = stats[i, cv2.CC_STAT_LEFT], stats[i, cv2.CC_STAT_TOP], stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT]
@@ -150,7 +137,7 @@ def find_dados(frame_C,mask_not_bk: np.array)-> list:
             continue
         cuadrado = frame_C[y:y+h, x:x+w]
         cuadrados.append((x,y,w,h))
-        #imshow(cuadrado, blocking= True)
+        # imshow(cuadrado, blocking= True)
     return cuadrados
 
 
@@ -189,27 +176,71 @@ def contar_puntos(frame, lista_dados: np.array)-> tuple[dict, int]:
         
     return dict_cuadrados_puntos, puntos_totales
                 
+def geberala(combinaciones=list[int])-> tuple[int,str]:
+    combinaciones.sort()  # Ordenar los valores para facilitar el análisis
+    puntuacion_generala = 0
+    text_combinacion = "Sin combinación"
+    if len(combinaciones) == 5:
+        # Generala
+        if len(set(combinaciones)) == 1:
+            puntuacion_generala = 50
+            text_combinacion = "Generala: 50 puntos(5 dados iguales)"
+        # Poker
+        elif any(combinaciones.count(val) == 4 for val in combinaciones):
+            puntuacion_generala = 40
+            text_combinacion = "Poker: 40 puntos(4 dados iguales)"
+        # Full
+        elif any(combinaciones.count(val) == 3 for val in combinaciones):
+            puntuacion_generala = 30
+            text_combinacion = "Full: 30 puntos(3 dados iguales)"
+        # Escalera
+        elif combinaciones == [1, 2, 3, 4, 5]:
+            puntuacion_generala = 20
+            text_combinacion = "Escalera menor: 20 puntos"
+        elif combinaciones == [2, 3, 4, 5, 6]:
+            puntuacion_generala = 25
+            text_combinacion = "Escalera mayor: 25 puntos"
+        # Suma de números específicos
+        else:
+            puntuacion_generala = puntuacion_generala  # Sumar los valores de los dados
+            text_combinacion = f"Suma: {puntuacion_generala} puntos"
+    return puntuacion_generala, text_combinacion
+            
 
-def dibujar_dados(frame: np.array, lista_dados: list = None, dic_d: dict = None, label: bool = False, puntaje_jugada: int = 0)-> np.array:
+def dibujar_dados(frame: np.array, lista_dados: list = None, dic_d: dict = None, label: bool = False, puntaje_jugada: int = 0, texto: str = "Suma: 0 puntos")-> np.array:
     frame_draw = frame.copy()
-    if dic_d != None:
+    combinaciones = []
+    puntuacion_generala = 0
+
+    if dic_d is not None:
         i = 0
         for dado, punto in dic_d.items():
-            x,y,w,h = dado
+            x, y, w, h = dado
+            combinaciones.append(punto)  # Agregar el valor del dado al análisis de combinaciones
             cv2.rectangle(frame_draw, (x, y), (x + w, y + h), (255, 0, 0), 2)
             if label: 
-                text_dado = f'Dado {i+1}, Puntaje: {punto}'
-                cv2.putText(frame_draw, text_dado, (x, y-20), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), thickness= 2)
+                text_dado = f'Dado {i+1}'
+                text_puntaje = f'Puntaje:{punto}'
+                cv2.putText(frame_draw, text_dado, (x - 50, y - 65), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), thickness=2)
+                cv2.putText(frame_draw, text_puntaje, (x - 50, y - 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), thickness=2)
+                i += 1
+        
+        puntuacion_generala, text_combinacion = geberala(combinaciones)
+        cv2.putText(frame_draw, text_combinacion, (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.8, (0, 255, 0), thickness=2)
+
         if label:
-            text_puntaje = f'Puntaje total: {puntaje_jugada}'
-            cv2.putText(frame_draw,text_puntaje, (20,90), cv2.FONT_HERSHEY_DUPLEX, 2, (255,0,0), thickness=2 )
+            text_puntaje = f'Puntaje total: {puntaje_jugada + puntuacion_generala}'
+            cv2.putText(frame_draw, text_puntaje, (20, 120), cv2.FONT_HERSHEY_DUPLEX, 1.8, (255, 0, 0), thickness=2)
+
     else:
         for i in range(len(lista_dados)):
-            x,y,w,h = lista_dados[i]
-            cv2.rectangle(frame_draw, (x,y), (x+w,y+h), (255,0,0),2)
+            x, y, w, h = lista_dados[i]
+            cv2.rectangle(frame_draw, (x, y), (x + w, y + h), (255, 0, 0), 2)
         if puntaje_jugada != 0:
             text_puntaje = f'Puntaje total: {puntaje_jugada}'
-            cv2.putText(frame_draw,text_puntaje, (20,90), cv2.FONT_HERSHEY_DUPLEX, 2, (255,0,0), thickness=2 )
+            cv2.putText(frame_draw, texto, (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.8, (0, 255, 0), thickness=2)
+            cv2.putText(frame_draw, text_puntaje, (20, 120), cv2.FONT_HERSHEY_DUPLEX, 1.8, (255, 0, 0), thickness=2)
+
     return frame_draw
 
 def unir_frames(frame_original:np.array, area_dibujada:np.array, coords: tuple)-> np.array:
@@ -220,12 +251,21 @@ def unir_frames(frame_original:np.array, area_dibujada:np.array, coords: tuple)-
 
 
 
-def modificar_frames(video_path, frame_stop, low_limit, up_limit, coords, new_w , new_h )->list:
+def modificar_frames(video_path, frame_stop, low_limit, up_limit, coords, new_w , new_h, output_video_path=None)->list:
     cap = cv2.VideoCapture(video_path)
     ret, frame_ant = cap.read()
     num_frame = 0
     frames_mod = []
-    
+    puntaje_acumulado=0
+    total_puntos=0
+    texto = "Suma: 0 puntos"
+
+    if output_video_path != None:
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps = int(cap.get(cv2.CAP_PROP_FPS))
+        out = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+
     while True:
         ret, frame_sig = cap.read()
         
@@ -248,6 +288,13 @@ def modificar_frames(video_path, frame_stop, low_limit, up_limit, coords, new_w 
             )
             lista_dados = find_dados(area_interest_frame_stop, mask_not_bk_frame_stop)
             dic_dados, puntaje = contar_puntos(area_interest_frame_stop, lista_dados)
+
+            combinaciones = [punto for _, punto in dic_dados.items()]
+            puntaje_generala, texto_ = geberala(combinaciones)
+            texto = texto_
+            puntaje_acumulado += puntaje + puntaje_generala
+            total_puntos+=puntaje
+
             area_interest_frame_stop = cv2.cvtColor(area_interest_frame_stop, cv2.COLOR_BGR2RGB)
             area_dib = dibujar_dados(area_interest_frame_stop, dic_d=dic_dados, label=True, puntaje_jugada=puntaje)
             frame_dib = unir_frames(frame_sig, area_dib, coords=coords)
@@ -267,12 +314,16 @@ def modificar_frames(video_path, frame_stop, low_limit, up_limit, coords, new_w 
             )
             lista_dados = find_dados(area_interes_f_n, mask_not_bk_f_n)
             area_interes_f_n = cv2.cvtColor(area_interes_f_n, cv2.COLOR_BGR2RGB)
-            area_dib = dibujar_dados(area_interes_f_n, lista_dados= lista_dados, puntaje_jugada= puntaje)
+            area_dib = dibujar_dados(area_interes_f_n, lista_dados= lista_dados, puntaje_jugada= puntaje_acumulado, texto = texto)
             frame_dib = unir_frames(frame_sig, area_dib, coords=coords)
 
         num_frame+=1
         frame_dib_resize = cv2.resize(frame_dib, (new_w,new_h))
         cv2.imshow(winname='', mat=frame_dib_resize)
+
+        if output_video_path != None:
+            out.write(frame_dib)
+
         if cv2.waitKey(30) & 0xFF == ord('q'):
             print("Detenido por el usuario.")
             break
@@ -281,34 +332,42 @@ def modificar_frames(video_path, frame_stop, low_limit, up_limit, coords, new_w 
         
     #print(mask_not_bk_f.shape == mask_not_bk_frame_stop.shape)
     cap.release()
+    if output_video_path != None:
+        out.release()
     cv2.destroyAllWindows()
-    return frames_mod, dic_dados, puntaje
+    return frames_mod, dic_dados, puntaje_acumulado, total_puntos
     
+def user(path="data/tirada_4.mp4", output_video_path =None):
+    cap = cv2.VideoCapture(path)
+    ret, frame_test = cap.read()
 
-cap = cv2.VideoCapture("data/tirada_1.mp4")
-ret, frame_test = cap.read()
+    cap.release()
+    cv2.destroyAllWindows()
 
-cap.release()
-cv2.destroyAllWindows()
+    low_li, up_li = green_sample(frame_test)
+    area_interest_f, mask_not_bk_f, mask_bk_f, coords_f = area_of_interest(frame_test, lower_limit= low_li, upper_limit= up_li)
+    #imshow(mask_not_bk_f, blocking= True)
+    frame_stop = find_frame_stop()
 
-low_li, up_li = green_sample(frame_test)
-area_interest_f, mask_not_bk_f, mask_bk_f, coords_f = area_of_interest(frame_test, lower_limit= low_li, upper_limit= up_li)
-#imshow(mask_not_bk_f, blocking= True)
-frame_stop = find_frame_stop()
-
-new_width = int(area_interest_f.shape[1] * 0.4)
-new_height = int(area_interest_f.shape[0]  * 0.4)
-video_path = "data/tirada_1.mp4"
-frames_modificados, dic_dados, puntaje = modificar_frames(video_path, frame_stop= frame_stop, low_limit= low_li, up_limit = up_li,coords= coords_f, new_w = new_width, new_h = new_height)
+    new_width = int(area_interest_f.shape[1] * 0.4)
+    new_height = int(area_interest_f.shape[0]  * 0.4)
+    video_path = path
+    if output_video_path != None:
+        frames_modificados, dic_dados, puntaje, total_puntos = modificar_frames(video_path, frame_stop= frame_stop, low_limit= low_li, up_limit = up_li,coords= coords_f, new_w = new_width, new_h = new_height, output_video_path=output_video_path)
+    else:
+        frames_modificados, dic_dados, puntaje, total_puntos = modificar_frames(video_path, frame_stop= frame_stop, low_limit= low_li, up_limit = up_li,coords= coords_f, new_w = new_width, new_h = new_height)
 
 
+    print(f'Esta tirada tuvo los siguientes puntos:')
+    s = 1
+    for dado, punto in dic_dados.items():
+        print(f'El dado {s}: {punto}')
+        s+=1
+    print(f'El total de puntos es: {total_puntos}')
+    print(f'El puntaje total fue: {puntaje}')
 
-print(f'Esta tirada tuvo los siguientes puntos:')
-s = 1
-for dado, punto in dic_dados.items():
-    print(f'El dado {s}: {punto}')
-    s+=1
-print(f'El puntaje total fue: {puntaje}')
+for i in range(1,5):
+    user(f'data/tirada_{i}.mp4', f'Video_{i}.mp4')
 
 
 # plt.figure()
@@ -322,3 +381,4 @@ print(f'El puntaje total fue: {puntaje}')
 # plt.show()
 
 # imshow(area_interest_frame)
+
