@@ -142,7 +142,7 @@ def find_dados(frame_C,mask_not_bk: np.array)-> list:
     mask_open = cv2.morphologyEx(mask_not_bk, cv2.MORPH_OPEN, k, iterations= 2)
     mask_blur = cv2.GaussianBlur(mask_open, (5, 5), 0)
     _, mask_blur_binary = cv2.threshold(mask_blur, 170, 255, cv2.THRESH_BINARY)
-    #imshow(mask_blur_binary)
+    imshow(mask_blur_binary)
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask_blur_binary, connectivity=4)
     for i in range(1, num_labels):
         x, y, w, h = stats[i, cv2.CC_STAT_LEFT], stats[i, cv2.CC_STAT_TOP], stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT]
@@ -298,7 +298,7 @@ frame_stop = find_frame_stop()
 
 new_width = int(area_interest_f.shape[1] * 0.4)
 new_height = int(area_interest_f.shape[0]  * 0.4)
-video_path = "data/tirada_4.mp4"
+video_path = "data/tirada_1.mp4"
 frames_modificados, dic_dados, puntaje = modificar_frames(video_path, frame_stop= frame_stop, low_limit= low_li, up_limit = up_li,coords= coords_f, new_w = new_width, new_h = new_height)
 
 
