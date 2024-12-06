@@ -46,7 +46,6 @@ def area_of_interest(frame:np.array, lower_limit: np.array, upper_limit: np.arra
     area_interes = frame_bg[y:y+h, x:x+w]
     mask_not_bk_interes = mask_not_bk[y:y+h, x:x+w]
     mask_bk_interes = mask_bk[y:y+h, x:x+w]
-
    
     if coords:
         return area_interes, mask_not_bk_interes, mask_bk_interes,
@@ -68,21 +67,19 @@ def stop(frame_ant:np.array, frame_sig: np.array, threshold: int = 0)-> bool:
     # Contar los píxeles diferentes
     num_diff_pixels = cv2.countNonZero(diff_thresh)
 
-    
     # Si la diferencia de píxeles es menor que el umbral, no hubo movimiento
     return num_diff_pixels < threshold
 
 
 
 def find_frame_stop(video_path: str = "data/tirada_4.mp4")-> int:
-    # Abrir el video
     cap = cv2.VideoCapture(video_path)
     num_frame = 1
     frames_skip = 40
     movement = False
     consec_not_mov = 0
     frame_stop = 0
-    # Leer el primer frame
+    
     ret, frame_ant = cap.read()
     if not ret:
         print("Error al leer el video.")
@@ -90,41 +87,36 @@ def find_frame_stop(video_path: str = "data/tirada_4.mp4")-> int:
         exit()
 
     
-    # Procesar el video frame a frame
     while True:
         # Obtener la región de interés del primer frame
         frame_ant_interest, mask_bk_frame_ant, mask_not_bk_frame_ant = area_of_interest(frame_ant, low_li, up_li, coords=coords_f)
     
         # Leer el siguiente frame
         ret, frame_sig = cap.read()
-        if not ret:  # Salir si no hay más frames
+        if not ret:  
             break
 
         # Obtener la región de interés del siguiente frame
         frame_sig_interest, mask_bk_frame_sig, mask_not_bk_frame_sig = area_of_interest(frame_sig, low_li, up_li, coords=coords_f)
 
-        
-        
+                
         # Saltar los primeros frames
         if num_frame > frames_skip:
             # Llamar a la función `stop` para detectar si no hubo movimiento
             movement = stop(frame_ant_interest, frame_sig_interest, threshold=6)
             
-            # Mostrar el resultado
             if movement:
-                #print(f"No hay movimiento detectado en el frame: {num_frame}")
                 if consec_not_mov == 0:
                     frame_stop = num_frame
                 consec_not_mov += 1
             else:
                 consec_not_mov = 0
-                #print(f"Movimiento detectado en el frame: {num_frame}")
-            
+                
             # Si han pasado 4 frames consecutivos sin movimiento, considerar que los dados se han detenido
             if consec_not_mov >= 4:
-                #print(f'Los dados se detuvieron en el frame: {frame_stop}')
-                break  # Salir del loop si los dados se detuvieron
-        # Actualizar frame anterior
+                
+                break  
+        
         frame_ant = frame_sig
         
         num_frame += 1
@@ -133,16 +125,16 @@ def find_frame_stop(video_path: str = "data/tirada_4.mp4")-> int:
     # Liberar el video
     cap.release()
     cv2.destroyAllWindows()
-    #print("Análisis completo.")
+    
     return frame_stop
 
-def find_dados(frame_C,mask_not_bk: np.array)-> list:
+def find_dados(frame_C,mask_not_bk: np.array, plot = False)-> list:
     cuadrados = []
     k = cv2.getStructuringElement(cv2.MORPH_RECT, (21, 21))
     mask_open = cv2.morphologyEx(mask_not_bk, cv2.MORPH_OPEN, k, iterations= 2)
     mask_blur = cv2.GaussianBlur(mask_open, (5, 5), 0)
     _, mask_blur_binary = cv2.threshold(mask_blur, 170, 255, cv2.THRESH_BINARY)
-    imshow(mask_blur_binary)
+    #imshow(mask_blur_binary)
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask_blur_binary, connectivity=4)
     for i in range(1, num_labels):
         x, y, w, h = stats[i, cv2.CC_STAT_LEFT], stats[i, cv2.CC_STAT_TOP], stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT]
@@ -150,7 +142,9 @@ def find_dados(frame_C,mask_not_bk: np.array)-> list:
             continue
         cuadrado = frame_C[y:y+h, x:x+w]
         cuadrados.append((x,y,w,h))
-        #imshow(cuadrado, blocking= True)
+        if plot:
+            imshow(cuadrado, blocking= True)
+            
     return cuadrados
 
 
@@ -246,7 +240,7 @@ def modificar_frames(video_path, frame_stop, low_limit, up_limit, coords, new_w 
             area_interest_frame_stop, mask_not_bk_frame_stop, mask_bk_frame_stop = area_of_interest(
                 frame_sig, lower_limit=low_limit, upper_limit=up_limit, coords=coords
             )
-            lista_dados = find_dados(area_interest_frame_stop, mask_not_bk_frame_stop)
+            lista_dados = find_dados(area_interest_frame_stop, mask_not_bk_frame_stop, plot = True)
             dic_dados, puntaje = contar_puntos(area_interest_frame_stop, lista_dados)
             area_interest_frame_stop = cv2.cvtColor(area_interest_frame_stop, cv2.COLOR_BGR2RGB)
             area_dib = dibujar_dados(area_interest_frame_stop, dic_d=dic_dados, label=True, puntaje_jugada=puntaje)
