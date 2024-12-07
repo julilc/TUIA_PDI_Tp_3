@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from ipywidgets import interact, IntSlider
 from PIL import Image 
-
+import os
 # Función para mostrar imágenes
 def imshow(img, new_fig=True, title=None, color_img=False, blocking=False, colorbar=True, ticks=False):
     if new_fig:
